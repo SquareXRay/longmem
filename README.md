@@ -51,7 +51,7 @@ rule" escalation gate.
 flowchart TB
     subgraph ALWAYS["总是注入 · always in context"]
         L0["L0 协议 Protocol<br/>身份 / 红线 / 路由<br/>rules only, no facts"]
-        L1["L1 索引 Index<br/>≤ 35 KB<br/>map + hard rules + triggers"]
+        L1["L1 索引 Index<br/>≤ 36 KB<br/>map + hard rules + triggers"]
     end
     subgraph TRIGGER["触发词命中才读 · read on trigger"]
         L2["L2 主题 Topic<br/>one file per topic"]
@@ -74,8 +74,8 @@ flowchart TB
 | 层 Layer | 上限 Budget | 写入时机 When written | 读取方式 How read |
 |---|---|---|---|
 | L0 协议 | ~2 KB × 3 | 规则变化时 | 永远注入 |
-| L1 索引 | 35 KB | 结论/规则/入口变化 | 永远注入 |
-| L2 主题 | 25 KB / 文件 | 某主题有新结论 | 触发词命中 |
+| L1 索引 | 36 KB | 结论/规则/入口变化 | 永远注入 |
+| L2 主题 | 40 KB / 文件 | 某主题有新结论 | 触发词命中 |
 | L3 日志 | 只增不改 | 每完成一步 | 检索命中片段 |
 | L4 冷层 | 36 KB / 卷 | 4 周未动 | 索引回溯 |
 
@@ -91,7 +91,7 @@ resource-constrained box and pushed load to 5.7. The corpus was only a few hundr
 grep + bigram is cheaper, explainable, and fails visibly.
 
 **2. 预算先于内容 · Budget before content.**
-先定「索引层 35 KB」，再决定什么值得写。反过来做，记忆会自然膨胀到把任务挤出去。
+先定「索引层 36 KB」，再决定什么值得写。反过来做，记忆会自然膨胀到把任务挤出去。
 Decide the budget first, then decide what deserves to be written.
 
 **3. 纪律必须变成闸 · Discipline must become a gate.**

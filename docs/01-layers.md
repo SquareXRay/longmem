@@ -7,8 +7,8 @@
 | 层 | 上限 | 超出后的动作 |
 |---|---|---|
 | L0 协议 | ~2 KB × 3 文件 | 只留规则，把叙述删到主题层 |
-| L1 索引 | 35 KB | 拆主题：L1 只留一行指针 |
-| L2 主题 | 单文件 25 KB | 按月分卷，正文进冷层 |
+| L1 索引 | 36 KB | 拆主题：L1 只留一行指针 |
+| L2 主题 | 单文件 40 KB | 按月分卷，正文进冷层 |
 | L3 日志 | 单日不设上限（只增不改） | 超过 4 周不动就归档 |
 | 冷层 | 单卷 36 KB | 再分卷，索引留在热层 |
 
@@ -50,8 +50,8 @@ The system prompt is the scarce resource. Set the budget first, then decide what
 | Layer | Budget | When it overflows |
 |---|---|---|
 | L0 protocol | ~2 KB × 3 files | keep rules only, move narrative down |
-| L1 index | 35 KB | split into topic files, leave a one-line pointer |
-| L2 topic | 25 KB per file | monthly volumes, body to cold layer |
+| L1 index | 36 KB | split into topic files, leave a one-line pointer |
+| L2 topic | 40 KB per file | monthly volumes, body to cold layer |
 | L3 journal | unlimited (append-only) | archive after 4 weeks idle |
 | cold | 36 KB per volume | split again, keep the index hot |
 
