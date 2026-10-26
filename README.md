@@ -16,6 +16,10 @@
 
 Companion repo: [harness-governance](https://github.com/SquareXRay/harness-governance) — the execution and governance side.
 
+**中文**
+
+配套仓库：[harness-governance](https://github.com/SquareXRay/harness-governance) —— 负责执行与治理的那一侧。
+
 ---
 
 ## In one line
@@ -26,6 +30,12 @@ mistakes with an incident ledger plus a "second occurrence must become a rule" e
 
 > This is not a framework. It is a set of constraints, extracted from an agent that ran for
 > months, handled hundreds of tasks, and kept failing in the same ways.
+
+**中文**
+
+把记忆拆成 **协议 / 索引 / 主题 / 日志 / 冷层** 五层。按规则写入，读取只走一个 grep 入口，治理靠 hook 层的机械闸，并用错题本（incident ledger）加「同型第 2 次必须升级为规则」的升级门（escalation gate）止住重复犯错。
+
+> 这不是一个框架。它是一组约束，取自一个跑了几个月的 agent —— 它处理过几百个任务，并且一直在同样的地方栽跟头。
 
 ---
 
@@ -38,6 +48,16 @@ mistakes with an incident ledger plus a "second occurrence must become a rule" e
 | **Repeated failure** — the same tool trap hit for the fifth time | re-diagnosing from scratch |
 | **Scattered procedural knowledge** — the good procedure lives in one day's log | starting over next time |
 | **Decisions without provenance** — nobody remembers why this trade-off was chosen | re-litigating the same choice forever |
+
+**中文**
+
+| 症状 | 代价 |
+|---|---|
+| **注入预算被吃光** —— 记忆被硬塞进系统提示，直到一点空间都不剩 | 任务本身被挤出去 |
+| **记忆腐烂** —— 三周前的结论和今天的代码打架 | 照着过期的真相行动 |
+| **重复失败** —— 同一个工具坑踩到第五次 | 每次都要从头再诊断一遍 |
+| **流程知识散落** —— 好用的流程只活在某一日的日志里 | 下次重新来过 |
+| **决策没有出处** —— 没人记得这个取舍当初为什么这么定 | 同一个选择永远反复吵 |
 
 ---
 
@@ -75,6 +95,18 @@ flowchart TB
 | L3 journal | append-only | after every completed step | matching search snippet |
 | L4 cold | 36 KB per volume | untouched for 4 weeks | index lookup |
 
+**中文**
+
+上图与下表是同一件事的文字说明：L0 协议 / L1 索引常驻上下文，L2 主题触发时才读，L3 日志 / L4 冷层只做检索；错题本与技能作为旁挂台账挂在侧面（错题本第 2 次命中时回灌 L1，技能被应用时回灌 L0）。
+
+| 层级 | 预算 | 何时写入 | 怎么读 |
+|---|---|---|---|
+| L0 协议 | ~2 KB × 3 | 规则变化时 | 始终注入 |
+| L1 索引 | 36 KB | 结论、规则或入口变化时 | 始终注入 |
+| L2 主题 | 每文件 40 KB | 某个主题得到新结论时 | 触发词命中 |
+| L3 日志 | 只追加 | 每完成一步之后 | 匹配的检索片段 |
+| L4 冷层 | 每卷 36 KB | 四周未被触碰 | 查索引 |
+
 ---
 
 ## Three counter-intuitive findings
@@ -93,6 +125,17 @@ way round and memory grows until it crowds the task out.
 Rules that live only in prose get forgotten by the model sooner or later. Whole-file writes on
 shared files, config changes that widen scope, repeat mistakes that never escalate — all of it
 sinks into a hook layer that rejects unknown cases by default.
+
+**中文**
+
+**1. 跳过向量检索。**
+在资源受限的机器上，为几百个文件重建一次向量索引要花约两小时，还把负载顶到 5.7；它跑的时候，请求全被饿死。整个语料不过几百 KB —— 重建成本远远超过检索收益。grep + bigram 更便宜、可解释，而且失败是看得见的。
+
+**2. 预算先于内容。**
+先定死索引预算 —— 36 KB —— 再决定什么值得写。反过来做，记忆会一路长，直到把任务挤出去。
+
+**3. 纪律必须变成一个闸。**
+只活在正文里的规则，模型迟早会忘。共享文件上的整文件写入、放宽范围的配置改动、从不升级的重复错误 —— 全部沉到 hook 层，未知情况默认拒绝。
 
 ---
 
@@ -128,6 +171,14 @@ The quoted lines are the tool's output over a Chinese-language corpus, left verb
 The topic file outranks the journal, and neither is the longest document — that is the point of
 tier weighting.
 
+**中文**
+
+零依赖，只用 Python 3.8+ 标准库。
+
+示例输出（查询：「丢包率 packet loss」，根目录 `examples/greenhouse`）：
+
+引号里那几行是工具在中文语料上的真实输出，故意原样保留。主题文件排在日志前面，而两者都不是最长的文档 —— 这正是层级权重的意义。
+
 ---
 
 ## Documentation
@@ -143,6 +194,19 @@ tier weighting.
 
 Every doc is English-first and ends with a `## 中文摘要` section.
 
+**中文**
+
+| 文档 | 主题 |
+|---|---|
+| [docs/01-layers.md](docs/01-layers.md) | 五层模型与注入预算 |
+| [docs/02-write.md](docs/02-write.md) | 写入纪律与大文件安全 |
+| [docs/03-retrieval.md](docs/03-retrieval.md) | 检索打分，以及为什么不用向量 |
+| [docs/04-mistakes.md](docs/04-mistakes.md) | 错题本与升级门 |
+| [docs/05-skills.md](docs/05-skills.md) | 程序记忆 |
+| [docs/06-governance.md](docs/06-governance.md) | 决策台账、收件箱、机械闸 |
+
+每篇文档都是英文在前，并以一节 `## 中文摘要` 结尾。
+
 ---
 
 ## Repository layout
@@ -156,6 +220,10 @@ scripts/             minimal retrieval implementation
 assets/              banner
 ```
 
+**中文**
+
+目录结构同上方代码块，逐行对应：`README.md` 就是本文件；`docs/` 放英文在前的设计说明，中文摘要放在末尾；`templates/` 放可复制的骨架；`examples/greenhouse/` 是一个合成的记忆根，可以直接跑；`scripts/` 是最小检索实现；`assets/` 放横幅图。
+
 ---
 
 ## Not for everyone
@@ -165,18 +233,19 @@ assets/              banner
   across dozens of tasks.
 - **People who want a ready-made SDK** — what you get here is constraints and method.
 
+**中文**
+
+- **需要语义召回的场合** —— 这个设计是有意放弃向量的，见 docs/03。
+- **短期单人项目** —— 三层就够了；五层是给跨几十个任务、要跑几个月的工作用的。
+- **想要一个开箱即用 SDK 的人** —— 这里给的是约束和方法。
+
 ---
 
 ## License
 
 Docs under CC BY 4.0, code under MIT.
 
----
+**中文**
 
-## 中文摘要
+文档采用 CC BY 4.0，代码采用 MIT。
 
-- 一句话：把记忆拆成 **协议 / 索引 / 主题 / 日志 / 冷层**，写入靠纪律，读取走唯一检索入口，治理靠 hook 层的机械闸（fail-closed），错误靠错题本 + 「同型第 2 次要升级为规则」止住。
-- 三条反直觉结论：不用向量检索（重建成本远大于检索收益）、预算先于内容、纪律必须落成闸而不是写在文档里。
-- 结构表自下而上：L0 常驻、L1 常驻、L2 触发词命中、L3 只检索、L4 按需回溯；日志是唯一允许啰嗦的层。
-- 快速开始：抄 `templates/` 三个骨架，用 `scripts/memory_search.py` 在 `examples/greenhouse` 上试检索。
-- 本仓文档统一英文正文在前，末尾附中文摘要；配套的执行与治理侧在 harness-governance。

@@ -13,6 +13,15 @@ id | date | symptom | root cause | prevention | type
   "be careful".
 - **Type**: tool / process / environment / design — used to detect repeats.
 
+**中文**
+
+条目格式（代码块同上）：`编号 | 日期 | 现象 | 根因 | 预防 | 类型`。
+
+- **现象**：可观察的错误 / 挂死 / 超时，原样引用 —— 不是概括成「它失败了」。
+- **根因**：机制层面的解释。写不出根因，说明你还没诊断完，这条还不该入库。
+- **预防**：具体的下一个动作（换命令 / 加参数 / 先检查 X），不是「小心点」。
+- **类型**：工具 / 流程 / 环境 / 设计 —— 用于识别重复。
+
 ## Hot and cold tiers
 
 Keep the last three months hot, at most 60 KB (or 120 entries); roll older entries into monthly
@@ -41,6 +50,21 @@ volumes.
 3 volumes / 115 entries when the truth was 5 volumes / 155 entries; and the backup list had missed
 volumes that are not named by year-month, such as `-unknown`.)
 
+**中文**
+
+最近三个月留在热层，最多 60 KB（或 120 条）；更早的条目按月分卷滚进冷层，每卷 36 KB。冷卷只保留索引（编号 + 一句话 + 卷号），需要回溯时按编号定位。这样错题本才不会自己变成上下文炸弹。
+
+**索引契约**：冷层索引可以带一张卷表加一份条目级映射，与单卷同一个 36 KB 上限。条目级映射是编号查找保持 O(1) 的依赖 —— 不要为了「干净」把它压成纯卷表，否则查找会退化成在五个卷里 grep。
+
+**分卷重建脚本是生产代码**，必须满足四条要求：
+
+1. 按**结构**识别索引（一张卷表：第一列是文件名，加编号区间 / 条目数 / 字节数），绝不按「文件里有没有 `1. ` 这样的行」判断 —— 条目级映射看起来和条目一模一样，会被当成正文重新解析；
+2. 写入前**全量备份**（热文件、索引、每一个卷、计数器）；任何一份拷贝失败就中止；
+3. 写入前做**算术自检**：解析出的条目总数必须等于各卷计数之和，否则拒绝写入；
+4. dry-run 与真跑必须共用同一条判定路径，这样「你看到的卷和计数」就是「将要写下去的卷和计数」。
+
+（这四条出自一次真实事故：某次重建把自己的索引当成正文解析，报了 3 卷 / 115 条，而真相是 5 卷 / 155 条；备份清单还漏掉了不以年月命名的卷，例如 `-unknown`。）
+
 ## Operation semantics (borrowed from memory systems: ADD / UPDATE / NOOP)
 
 | Operation | Trigger |
@@ -62,6 +86,21 @@ The counter has two forms, and both are required:
   Report only, never block: print one warning line, never change state, never escalate
   automatically.
 
+**中文**
+
+| 操作 | 触发 |
+|---|---|
+| ADD | 一个新类型，或一个新根因 |
+| UPDATE | 类型已存在 —— 补上新的现象，或修正预防（保留原来的，标出这次更新） |
+| NOOP | 同类型且同预防 —— 只更新时间戳 / 计数器 |
+
+计数器很重要：**计数器就是升级信号。**
+
+计数器有两种形态，两种都必须有：
+
+- **条目内 ×N**（同一类型反复发生），
+- **跨条目的同一根因** —— 三条各为 ×1 的未销账条目共享一个根因，那仍然是「同型第 2 次」或更糟。机械判据：把现象归一化（去掉版本号、路径、数字），切成词元，要求共享的判别词元合计至少 12 个字符（实测的零假阳点；降到 8 就开始把无关条目也拉进来）。2 条及以上连通的条目成一组。只报告，绝不拦截：打印一行告警，绝不改状态，绝不自动升级。
+
 ## The escalation gate (the core)
 
 > Second occurrence of the same type → it must become a rule (protocol / skill / script), or the
@@ -71,11 +110,22 @@ The counter has two forms, and both are required:
 When you write the rule, leave a pointer to where the rule lives, or in six months nobody knows
 why it exists.
 
+**中文**
+
+> 同型第 2 次 → 必须落成规则（协议 / 技能 / 脚本），或者改用法。
+> 只记录不升级，错题本就会变成日记，错误继续发生。
+
+写规则的时候，留一个指针说明规则住在哪，否则六个月后没人知道它为什么存在。
+
 ## What to record
 
 ① unexpected failure; ② second occurrence of the same type; ③ anything that caused at least one
 rework cycle. Everything else — expected probe failures, one-off environment noise — stays out, or
 the signal-to-noise ratio collapses.
+
+**中文**
+
+① 非预期失败；② 同型第 2 次；③ 任何造成了至少一轮返工的事。其余 —— 预期内的探针失败、一次性的环境噪音 —— 不进，否则噪信比会崩掉。
 
 ## Anti-patterns
 
@@ -83,13 +133,8 @@ the signal-to-noise ratio collapses.
 - Recording the symptom without the root cause — next time it will not be fixed either.
 - No hot/cold split — hit rate drops and people stop trusting the system.
 
-## 中文摘要
+**中文**
 
-- 一条一行：序号｜日期｜现象｜根因｜预防｜类型；写不出根因 = 没诊断完，不该入库。
-- 热层保留最近 3 个月，≤ 120 条（或按字节封顶）；更早的按月分卷进冷层，冷层只留索引（编号 + 一句话 + 卷号），避免错题本自己变成上下文炸弹。
-- 冷层索引契约：可带「卷表 + 条目级映射」，条目级映射是编号回溯 O(1) 的依赖，别为「干净」压成纯卷表。
-- 重建分卷脚本属生产代码，四条硬要求：按结构识别索引、写前全量备份、写前算术自检、dry-run 与真跑共用判定路径。
-- 真实事故：某次重建把索引当正文，报了 115 条 / 3 卷，真值 155 条 / 5 卷，且备份清单漏掉非年月命名的分卷。
-- 操作语义 ADD / UPDATE / NOOP；计数就是升级信号，且必须两种形态并存：条目内 ×N 与跨条目同根因（判别词元 ≥ 12 字符，连通分量 ≥ 2 条即成组），只告警不自动改状态。
-- 升级门：同型第 2 次必须落成规则（协议/技能/脚本）或改用法；写规则时留规则位置指针。
-- 该记的三类：非预期失败、同型第 2 次、造成 ≥1 轮返工；其余不记，否则噪信比崩掉。
+- 写「小心 X」—— 不可执行。
+- 只记现象不记根因 —— 下次照样不会修好。
+- 不分冷热 —— 命中率下降，人就不信这个系统了。

@@ -13,6 +13,16 @@ files took about two hours, load hit 5.7, and session requests were starved whil
 
 So: **one entry point, plain grep, explainable, and failures are visible.**
 
+**中文**
+
+一次全量向量重建是在**资源受限的单机**上实测的：几百个文件花了约两小时，负载冲到 5.7，重建跑着的时候会话请求被饿死。结论：
+
+- 重建成本 ≫ 检索收益（整个语料只有几百 KB 到几 MB 的量级）。
+- 增量索引更糟：写入路径要同步、要处理删除，还要防索引与正文漂移。
+- 你真正需要的是**精确召回** —— 「那个坑我记在哪了」—— 而这类需求上关键词搜索胜过语义搜索。
+
+所以：**一个入口，纯 grep，可解释，而且失败看得见。**
+
 ## Scoring
 
 ```
@@ -31,11 +41,31 @@ Tier weights (empirical, ordered by "higher layers should be read first"):
 
 Dividing by sqrt(length) is what stops the journal from always winning.
 
+**中文**
+
+打分公式（代码块同上）：得分 =（命中词元数 / sqrt(文件字节数 + 1)）× 层级权重 + 0.5（整句精确命中）。
+
+层级权重（经验值，按「越靠上的层越该先读」排序）：
+
+| 文件 | 权重 |
+|---|---|
+| 协议 | 1.35 |
+| 索引 | 1.30 |
+| 主题 | 1.25 |
+| 目录索引 | 1.05 |
+| 日志 | 0.55 |
+
+除以 sqrt(长度) 正是让日志不再永远霸榜的原因。
+
 ## Tokenization
 
 Chinese has no spaces, so split into **bigrams**: 记忆架构 → 记忆 / 忆架 / 架构. Latin words and
 digits are lowercased whole tokens. The raw query string is kept as well, for the exact-match
 bonus.
+
+**中文**
+
+中文没有空格，所以切成 **bigram**：记忆架构 → 记忆 / 忆架 / 架构。拉丁词与数字整词小写。查询原文也一并保留，用于精确命中加分。
 
 ## Budget
 
@@ -45,17 +75,17 @@ bonus.
 - Persist only a hash of the query plus the hit count, for observing cold queries — never the
   query text.
 
+**中文**
+
+- 超过 2 MB 的文件直接跳过 —— 那通常是日志或数据，不是答案。
+- 总预算 5 秒；超时即中止，返回一个「已跳过」标记。少返回一点，好过挂住。
+- 只持久化查询的 hash 加命中数，用来观察冷查询 —— 绝不存查询原文。
+
 ## What comes back
 
 {file, path, score, matching line snippet (≤120 characters)} — enough to decide whether to open the
 full text. Opening the text is left to the next step, so one search does not blow up the context.
 
-## 中文摘要
+**中文**
 
-- 在资源受限的单机上实测过全量向量重建：几百个文件约两小时、负载 5.7、期间请求被挤掉，而记忆总量只有几百 KB 量级——重建成本远大于检索收益。
-- 增量索引更糟（写入同步、删除处理、索引与正文漂移），真正需要的是「那条坑记在哪」这种精确命中。
-- 于是只用**单一入口 + 纯 grep + 层级权重打分**：命中次数除以 sqrt(字节数)，再乘层级权重，整句精确命中加 0.5。
-- 权重按「越靠上越该先读」：协议 1.35 / 索引 1.30 / 主题 1.25 / 目录索引 1.05 / 日志 0.55；除以长度是为了不让长日志霸榜。
-- 中文按 bigram 切分，英文与数字整词小写，查询原文保留用于精确加分。
-- 单文件 > 2 MB 直接跳过；总预算 5 秒、超时返回「已跳过」；查询只落 hash + 命中数，不留原文。
-- 返回片段（≤120 字符）够判断要不要打开全文，避免一次检索把上下文撑爆。
+{file, path, score, 命中行片段（≤120 字符）} —— 足够判断要不要打开全文。打开全文留给下一步，于是一次检索不会把上下文撑爆。
