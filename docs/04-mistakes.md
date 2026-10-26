@@ -1,114 +1,95 @@
-# 04 · 错题本：把「踩过」变成「不再踩」
+# 04 · The incident ledger: from "it bit me" to "it never bites again"
 
-## 条目格式（一行一条）
-
-```
-序号 | 日期 | 现象 | 根因 | 预防 | 类型
-```
-
-- **现象**：可观察的报错/挂死/超时原文要点，不要概括成「失败了」。
-- **根因**：机制层解释。写不出根因 = 还没诊断完，不该入库。
-- **预防**：下次的具体动作（换命令/加参数/先检查什么），不是「要小心」。
-- **类型**：工具层 / 流程层 / 环境层 / 设计层——用于同型识别。
-
-## 热冷分层
-
-热层保留最近 3 个月，单文件 ≤ 60 KB（或 ≤ 120 条）；更早的按月分卷进冷层，
-冷层只留索引（编号 + 一句话 + 卷号），需要回溯时按编号定位。
-避免「错题本自己变成上下文炸弹」。
-
-**索引契约**：冷层索引可携带「卷表 + 条目级映射」，上限与单卷同（36 KB）。条目级映射是编号回溯保持 O(1) 的依赖，
-不要为了「干净」把它压成纯卷表——回溯会退化成在 5 个卷里 grep。
-
-**重建分卷的脚本属于生产代码**，必须满足四条：
-
-1. 用**结构**识别索引（卷表：首列文件名 + 编号区间/条数/字节），不要用「文件里有没有 `1. ` 这种行」判——
-   条目级映射长得就像条目，会被误当正文重解析；
-2. 写盘前**全量备份**（热层、索引、每一个分卷、计数器），任一复制失败即中止；
-3. 写前**算术自检**：解析出的条目总数必须等于各卷条数之和，否则拒绝写盘；
-4. dry-run 与真跑共用同一条判定路径，保证「看到的卷数/条数」就是「会被写出的」。
-
-（这四条是一次真实事故的产物：某次重建把自己的索引当正文，报 3 卷 115 条，真值 5 卷 155 条；
-且备份清单漏掉了 `-unknown` 这类非年月命名的分卷。）
-
-## 操作语义（借自记忆系统的 ADD/UPDATE/NOOP）
-
-| 操作 | 触发 |
-|---|---|
-| ADD | 新类型、新根因 |
-| UPDATE | 同型已有条目，补充新现象或修正预防措施（保留原条目，标注更新） |
-| NOOP | 同型且预防一致，只更新时间戳/计数 |
-
-计数很重要：**计数就是升级信号**。
-
-计数有两种形态，缺一不可：
-
-- **同一条目内 ×N**（同型重复），
-- **跨条目同根因**——三条各自 `×1` 的开放条目若共享同一根因，仍是「同型第 2 次」以上。
-  机械判据：把「现象」归一化（去版本号/路径/数字）后切成词元，共享判别词元的字符总数 ≥ 阈值
-  （实测 12 个字符是零误报点，降到 8 开始连进无关条目），连通分量 ≥2 条即成组。
-  只报不拦：输出一行告警，绝不自动改状态、绝不自动升级。
-
-## 升级门（核心）
-
-> 同型第 2 次 → 必须落成规则（协议/技能/脚本），或者改用法。
-> 只记不升 = 台账变日记本，错误照旧。
-
-写规则时留「规则位置指针」，否则半年后没人知道这条为什么存在。
-
-## 什么该记
-
-① 非预期失败；② 同型第 2 次；③ 造成 ≥1 轮返工。
-其余（预料之中的探测失败、一次性环境噪音）不记，否则噪信比崩。
-
-## 反模式
-
-- 记成「注意 XX」——不可执行。
-- 只记现象不记根因——下次照样不会修。
-- 冷热不分——检索命中率下降，人会开始不信这套东西。
-
-## English
-
-### Entry format (one line each)
+## Entry format (one line each)
 
 ```
 id | date | symptom | root cause | prevention | type
 ```
 
-- **Symptom**: the observable error, timeout or hang — not "it failed".
-- **Root cause**: a mechanism-level explanation. No cause, no entry — you have not diagnosed it yet.
-- **Prevention**: the concrete next action (different flag, check X first), not "be careful".
+- **Symptom**: the observable error / hang / timeout, quoted — not summarized as "it failed".
+- **Root cause**: a mechanism-level explanation. If you cannot write the cause, you have not
+  finished diagnosing, and the entry does not belong here yet.
+- **Prevention**: the concrete next action (different command / extra flag / check X first), not
+  "be careful".
 - **Type**: tool / process / environment / design — used to detect repeats.
 
-### Hot and cold tiers
+## Hot and cold tiers
 
-Keep three months hot, at most 36 KB, and roll older entries into monthly volumes. Cold volumes
-keep only an index (id + one sentence + volume). Otherwise the ledger itself becomes a context bomb.
+Keep the last three months hot, at most 60 KB (or 120 entries); roll older entries into monthly
+volumes at 36 KB per volume. Cold volumes keep only an index (id + one sentence + volume number),
+and you locate an entry by id when you need to go back. This stops the ledger from turning into a
+context bomb on its own.
 
-### Operation semantics (borrowed from memory systems)
+**Index contract**: a cold index may carry a volume table plus an entry-level map, with the same
+36 KB cap as a single volume. The entry-level map is what keeps id lookup O(1) — do not flatten it
+into a pure volume table for the sake of tidiness, or lookup degrades into grepping across five
+volumes.
+
+**The volume-rebuild script is production code**, and must satisfy four requirements:
+
+1. Identify the index by **structure** (a volume table: filename in the first column plus id range
+   / entry count / byte count), never by "does the file contain a line like `1. `" — an
+   entry-level map looks exactly like entries and gets re-parsed as body text;
+2. **Back up everything** before writing (hot file, index, every volume, the counter); abort if any
+   copy fails;
+3. **Arithmetic self-check** before writing: the parsed entry total must equal the sum of the
+   per-volume counts, otherwise refuse to write;
+4. dry-run and the real run must share the same decision path, so "the volumes and counts you see"
+   are "the ones that will be written".
+
+(These four came out of a real incident: a rebuild parsed its own index as body text and reported
+3 volumes / 115 entries when the truth was 5 volumes / 155 entries; and the backup list had missed
+volumes that are not named by year-month, such as `-unknown`.)
+
+## Operation semantics (borrowed from memory systems: ADD / UPDATE / NOOP)
 
 | Operation | Trigger |
 |---|---|
-| ADD | new type or new root cause |
-| UPDATE | same type, add a symptom or fix the prevention (keep the original, mark the change) |
-| NOOP | same type, same prevention — just bump the counter |
+| ADD | a new type, or a new root cause |
+| UPDATE | the type already exists — add the new symptom or fix the prevention (keep the original, mark the update) |
+| NOOP | same type and same prevention — only bump the timestamp / counter |
 
-The counter matters: **the count is the escalation signal**.
+The counter matters: **the counter is the escalation signal.**
 
-### The escalation gate
+The counter has two forms, and both are required:
 
-> Second occurrence of the same type → it must become a rule (protocol / skill / script),
-> or the usage must change. Recording without escalating turns a ledger into a diary.
+- **×N within one entry** (the same type repeating),
+- **the same root cause across entries** — three open entries each at ×1 that share one root cause
+  are still at "second occurrence of the same type" or worse. Mechanical test: normalize the
+  symptom (strip version numbers, paths, digits), split it into tokens, and require the shared
+  discriminating tokens to total at least 12 characters (measured as the zero-false-positive point;
+  dropping to 8 starts pulling in unrelated entries). Two or more connected entries form a group.
+  Report only, never block: print one warning line, never change state, never escalate
+  automatically.
 
-When you write the rule, leave a pointer to where it lives.
+## The escalation gate (the core)
 
-### What to record
+> Second occurrence of the same type → it must become a rule (protocol / skill / script), or the
+> usage must change.
+> Recording without escalating turns the ledger into a diary, and the mistakes continue.
 
-① unexpected failure; ② second occurrence; ③ caused at least one rework cycle.
-Skip everything else — expected probe failures and one-off environment noise — or the signal drowns.
+When you write the rule, leave a pointer to where the rule lives, or in six months nobody knows
+why it exists.
 
-### Anti-patterns
+## What to record
 
-- "Pay attention to X" — not actionable.
-- Symptom without cause — next time it still will not be fixed.
+① unexpected failure; ② second occurrence of the same type; ③ anything that caused at least one
+rework cycle. Everything else — expected probe failures, one-off environment noise — stays out, or
+the signal-to-noise ratio collapses.
+
+## Anti-patterns
+
+- Writing "watch out for X" — not actionable.
+- Recording the symptom without the root cause — next time it will not be fixed either.
 - No hot/cold split — hit rate drops and people stop trusting the system.
+
+## 中文摘要
+
+- 一条一行：序号｜日期｜现象｜根因｜预防｜类型；写不出根因 = 没诊断完，不该入库。
+- 热层保留最近 3 个月，≤ 120 条（或按字节封顶）；更早的按月分卷进冷层，冷层只留索引（编号 + 一句话 + 卷号），避免错题本自己变成上下文炸弹。
+- 冷层索引契约：可带「卷表 + 条目级映射」，条目级映射是编号回溯 O(1) 的依赖，别为「干净」压成纯卷表。
+- 重建分卷脚本属生产代码，四条硬要求：按结构识别索引、写前全量备份、写前算术自检、dry-run 与真跑共用判定路径。
+- 真实事故：某次重建把索引当正文，报了 115 条 / 3 卷，真值 155 条 / 5 卷，且备份清单漏掉非年月命名的分卷。
+- 操作语义 ADD / UPDATE / NOOP；计数就是升级信号，且必须两种形态并存：条目内 ×N 与跨条目同根因（判别词元 ≥ 12 字符，连通分量 ≥ 2 条即成组），只告警不自动改状态。
+- 升级门：同型第 2 次必须落成规则（协议/技能/脚本）或改用法；写规则时留规则位置指针。
+- 该记的三类：非预期失败、同型第 2 次、造成 ≥1 轮返工；其余不记，否则噪信比崩掉。
