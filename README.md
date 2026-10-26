@@ -192,7 +192,7 @@ tier weighting.
 | [docs/05-skills.md](docs/05-skills.md) | procedural memory |
 | [docs/06-governance.md](docs/06-governance.md) | ledgers, inbox, mechanical gates |
 
-Every doc is English-first and ends with a `## 中文摘要` section.
+Every doc pairs each section with a full Chinese translation right after it.
 
 **中文**
 
@@ -205,7 +205,7 @@ Every doc is English-first and ends with a `## 中文摘要` section.
 | [docs/05-skills.md](docs/05-skills.md) | 程序记忆 |
 | [docs/06-governance.md](docs/06-governance.md) | 决策台账、收件箱、机械闸 |
 
-每篇文档都是英文在前，并以一节 `## 中文摘要` 结尾。
+每篇文档的每个小节都紧跟完整的中文对照。
 
 ---
 
@@ -213,7 +213,7 @@ Every doc is English-first and ends with a `## 中文摘要` section.
 
 ```
 README.md            this file
-docs/                English-first design notes, Chinese summary at the end
+docs/                bilingual design notes, per-section EN/ZH parallel text
 templates/           copy-paste skeletons
 examples/greenhouse/ synthetic memory root, runnable
 scripts/             minimal retrieval implementation
@@ -222,7 +222,7 @@ assets/              banner
 
 **中文**
 
-目录结构同上方代码块，逐行对应：`README.md` 就是本文件；`docs/` 放英文在前的设计说明，中文摘要放在末尾；`templates/` 放可复制的骨架；`examples/greenhouse/` 是一个合成的记忆根，可以直接跑；`scripts/` 是最小检索实现；`assets/` 放横幅图。
+目录结构同上方代码块，逐行对应：`README.md` 就是本文件；`docs/` 放逐节中英对照的设计说明（每节英文后紧跟中文全文）；`templates/` 放可复制的骨架；`examples/greenhouse/` 是一个合成的记忆根，可以直接跑；`scripts/` 是最小检索实现；`assets/` 放横幅图。
 
 ---
 
