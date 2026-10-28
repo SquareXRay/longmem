@@ -39,7 +39,9 @@ losing data. Three safe ways to edit:
    allowed.
 2. **Append** — `>>` or an append tool; inherently safe.
 3. **Full rewrite** — only through an atomic writer: temp file + size guard (refuse when the new
-   content is much smaller than the old) + timestamped backup + rename.
+   content is much smaller than the old) + timestamped backup + rename. The writer leaves a `.bak`
+   next to the target and asserts that each anchor matched exactly once; if it cannot prove both,
+   it has failed and must not touch the file.
 
 **中文**
 
@@ -47,7 +49,7 @@ losing data. Three safe ways to edit:
 
 1. **锚点精确替换** —— 锚点找不到就失败退出。「大概在这个位置」不允许。
 2. **追加** —— `>>` 或追加工具；天生安全。
-3. **整段重写** —— 只走原子写：临时文件 + 缩水护栏（新内容比旧内容小很多就拒绝）+ 带时间戳的备份 + rename。
+3. **整段重写** —— 只走原子写：临时文件 + 缩水护栏（新内容比旧内容小很多就拒绝）+ 带时间戳的备份 + rename。写盘器会在目标旁留一份 `.bak`，并断言每个锚点恰好命中一次；两样都证不出来就算失败，不许碰文件。
 
 ## Append-only files stay append-only
 
@@ -55,18 +57,48 @@ Journals, incident ledgers and inboxes are write-once-append files. Block whole-
 hook layer with a protected-path list. The reason: a whole-file write silently drops someone
 else's entries, and the diff does not show it.
 
+The list is load-bearing, so it needs the same discipline as the files it protects: **a new ledger
+file that is not registered is unprotected**, and the protection fails open exactly where nobody is
+looking. Registering a new `MEMORY-<topic>.md` is part of creating it, not a follow-up.
+
 **中文**
 
 日志、错题本与收件箱都是一次写入、只追加的文件。在 hook 层用一张保护路径清单拦死整文件写入。原因：整文件写入会静默丢掉别人的条目，而 diff 上看不出来。
 
+这张清单是承重的，所以它自己也要守同样的纪律：**没登记的新台账文件等于没有保护**，而保护恰恰会在没人看的地方失效。新建 `MEMORY-<主题>.md` 时同步登记是「创建」的一部分，不是后续补办。
+
 ## Shell redirect trap
 
 `cmd > same-file` truncates **before** reading, which empties the file. Correct order: write a
-temp file first, then copy it over.
+temp file first, then copy it over. And if the reader itself reports **truncated**, stop: you hold a
+prefix, not the file, so any rewrite is data loss. Truncation is a fail-closed signal, not a hint.
 
 **中文**
 
-`cmd > 同一个文件` 会在读取**之前**就把文件截断，等于把内容清空。正确顺序：先写临时文件，再拷贝覆盖过去。
+`cmd > 同一个文件` 会在读取**之前**就把文件截断，等于把内容清空。正确顺序：先写临时文件，再拷贝覆盖过去。还有一条：只要读取器自己报了 **truncated**，立刻停手 —— 你手里只是前缀，不是文件，任何重写都是数据丢失。截断是 fail-closed 信号，不是提示。
+
+## Temp files are not free
+
+On many machines `/tmp` is a tmpfs: every byte there is RAM. A few GB of scratch files do not fail
+as "disk full" — swap goes first, then memory commits fail, and everything that needs a page dies at
+the same moment (browsers crash with resource errors, saves fail, background jobs drop their
+deliveries). So:
+
+- scratch data — database copies, unpacked trees, test fixtures, traces — goes to a **disk-backed**
+  directory, and the task sets its temp variable to that directory explicitly;
+- a single file over 50 MB never lands on the tmpfs;
+- a periodic checker reports only when the tmpfs crosses a size line or holds an oversized file, and
+  reclaim also runs on **prefix rules** with a much lower floor: tools that create one scratch
+  directory per run leave hundreds of small directories, which a global "50 MB / 24 h" threshold
+  never sees.
+
+**中文**
+
+在很多机器上 `/tmp` 是 tmpfs：那里每一个字节都是内存。几个 GB 的临时文件不会以「磁盘满」的方式失败 —— 先打满 swap，然后内存提交失败，所有需要换页的东西在同一刻一起死（浏览器报资源错误崩溃、保存失败、后台任务投递丢失）。所以：
+
+- 临时数据 —— 数据库副本、解包目录、测试夹具、trace —— 一律落在**磁盘**目录，任务把临时目录变量显式指向那里；
+- 单文件超过 50 MB 绝不落 tmpfs；
+- 巡检只在 tmpfs 越过体积线或出现超大文件时报警，同时回收还按**前缀规则**用一个低得多的门槛跑：每次运行都自建一个临时目录的工具会留下成百上千个小目录，全局「50 MB / 24 小时」阈值永远抓不到它们。
 
 ## Quoting long text
 

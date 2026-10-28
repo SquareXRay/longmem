@@ -7,11 +7,11 @@ written:
 
 | Layer | Budget | Action when exceeded |
 |---|---|---|
-| L0 protocol | ~2 KB × 3 files | keep rules only, push the narrative down to the topic layer |
+| L0 protocol | 4 files, ≤ 45 KB total; the protocol file itself ≤ 24 KB | keep rules only, push the narrative down to the topic layer |
 | L1 index | 36 KB | split into topics; L1 keeps a one-line pointer |
 | L2 topic | 40 KB per file | split into monthly volumes, body to the cold layer |
 | L3 journal | no daily cap (append-only) | archive after 4 weeks idle |
-| L4 cold | 36 KB per volume | split again, keep the index hot |
+| L4 cold | 36 KB per volume; a cold index may carry a volume table plus an entry-level map under the same 36 KB | split again, keep the index hot |
 
 **中文**
 
@@ -19,11 +19,21 @@ written:
 
 | 层级 | 预算 | 超预算时的动作 |
 |---|---|---|
-| L0 协议 | ~2 KB × 3 个文件 | 只留规则，把叙述下沉到主题层 |
+| L0 协议 | 4 个文件，合计 ≤ 45 KB；其中协议文件本身 ≤ 24 KB | 只留规则，把叙述下沉到主题层 |
 | L1 索引 | 36 KB | 拆成主题；L1 只留一行指针 |
 | L2 主题 | 每文件 40 KB | 按月分卷拆开，正文进冷层 |
 | L3 日志 | 每日无上限（只追加） | 闲置四周后归档 |
-| L4 冷层 | 每卷 36 KB | 再拆一次，让索引保持热 |
+| L4 冷层 | 每卷 36 KB；冷层索引可含「卷表 + 条目级映射」，同样 ≤ 36 KB | 再拆一次，让索引保持热 |
+
+Two ceilings apply to the protocol layer at once, and they are checked separately: a per-file
+ceiling on the protocol file (24 KB) and a total ceiling on the four injected files (45 KB). The
+index is measured on its own, not folded into that total — mixing them hides which file is actually
+eating the budget. Every ceiling here is asserted by a script against real file size; a budget
+nobody measures is a wish.
+
+**中文**
+
+协议层同时受两个上限约束，且分别检查：协议文件自身的单文件上限（24 KB）与四份注入文件合计上限（45 KB）。索引**单独量**，不折进这个合计 —— 混在一起就看不出到底是哪个文件在吃预算。这里每一条上限都由脚本按真实文件大小断言；没人量的预算只是愿望。
 
 ## One job per layer (do not mix)
 

@@ -67,8 +67,16 @@ Write discipline as prose and the model will forget it sooner or later. Therefor
 | config changes may only tighten | pre-write validation + allowlist |
 | restricted commit scope | pre-commit file-set check |
 | repeat incidents must escalate | counters + a periodic scan |
+| duplicate hints must never merge on their own | advisory path: prints candidates, writes nothing |
 
 **Unknown cases resolve to the stricter branch** (fail-closed) — never "looks fine, let it pass".
+
+But not every signal belongs in a gate. "This looks like the same incident", "these two entries
+probably share a root cause" — those must stay **advisory**: printed, logged, and never allowed to
+change state. Promoting a hint into an admission gate destroys the ledger's value, because the
+writer then starts failing on judgement calls. The mirror rule holds for housekeeping limits (hot
+size, open-entry count): they evict or warn, and the write still succeeds. A gate you cannot afford
+to be wrong about is not a gate, it is an outage waiting for a false positive.
 
 **中文**
 
@@ -80,8 +88,11 @@ Write discipline as prose and the model will forget it sooner or later. Therefor
 | 配置改动只能收紧 | 写前校验 + 白名单 |
 | 提交范围受限 | pre-commit 文件集检查 |
 | 重复事故必须升级 | 计数器 + 定期扫描 |
+| 重复提示绝不自动归并 | advisory 通道：只打印候选，不写任何东西 |
 
 **未知情况一律落到更严的那一支**（fail-closed）—— 绝不「看着没问题，放它过」。
+
+但并不是每个信号都该做成闸。「这看着像同一起事故」「这两条大概同一个根因」这类必须留在 **advisory**：只打印、只落日志，绝不允许改状态。把提示提升成准入闸会毁掉台账的价值 —— 写入者从此开始因为判断题而失败。整理类上限（热层体积、未结条数）同理：它们只驱逐或告警，写入照样成功。一个「错不起」的闸不是闸，是一次等着假阳来触发的宕机。
 
 ## Every gate needs dual probes before shipping
 

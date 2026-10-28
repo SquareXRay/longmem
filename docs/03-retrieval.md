@@ -11,7 +11,9 @@ files took about two hours, load hit 5.7, and session requests were starved whil
 - What you actually need is **exact recall** — "where did I write that trap down" — and keyword
   search beats semantic search for that.
 
-So: **one entry point, plain grep, explainable, and failures are visible.**
+So: **one entry point, plain grep, explainable, and failures are visible.** Operationally the
+ranking provider is pinned to keyword/FTS and the semantic provider stays off; turning it on is a
+measured change of its own, not a setting someone flips for a week.
 
 **中文**
 
@@ -21,7 +23,7 @@ So: **one entry point, plain grep, explainable, and failures are visible.**
 - 增量索引更糟：写入路径要同步、要处理删除，还要防索引与正文漂移。
 - 你真正需要的是**精确召回** —— 「那个坑我记在哪了」—— 而这类需求上关键词搜索胜过语义搜索。
 
-所以：**一个入口，纯 grep，可解释，而且失败看得见。**
+所以：**一个入口，纯 grep，可解释，而且失败看得见。** 落地时排序只在关键词 / FTS 这一侧，语义 provider 保持关闭；要打开它必须当成一次独立的、带实测的变更，而不是谁顺手改个开关试一周。
 
 ## Scoring
 
@@ -89,3 +91,37 @@ full text. Opening the text is left to the next step, so one search does not blo
 **中文**
 
 {file, path, score, 命中行片段（≤120 字符）} —— 足够判断要不要打开全文。打开全文留给下一步，于是一次检索不会把上下文撑爆。
+
+
+## Two similarity thresholds, never one
+
+Scoring a *short entry* against another *short entry* is a different measurement from scoring a
+*long query* against a short entry.
+
+| Comparison | Threshold |
+|---|---|
+| entry ↔ entry (near-duplicate, advisory candidates) | 0.25 primary, 0.22 watch |
+| query ↔ entry (which two incidents to inject) | 0.10 |
+
+The reason is length dilution: a query carries a label, a file set and an acceptance criterion, so
+Jaccard collapses. Measured against a full ledger, the best query↔entry score was 0.158 and the top
+six sat at 0.107–0.158 — keeping 0.25 there would fall back on every single task, which is a silent
+deactivation rather than a safety margin. The fallback (best score below the line) is "newest entry
+of the same class", and it is labelled as a fallback so it can be counted.
+
+The rest of that injection, for reference: at most 2 entries, 120 bytes of body each, 800 bytes of
+digest in total, a 0.05 penalty for crossing classes, and no injection when a static mini-memory
+line already covers the entry (bigram coverage ≥ 0.5).
+
+**中文**
+
+拿**短条目**和另一条**短条目**比，与拿**长查询**和短条目比，是两种不同的度量。
+
+| 比较 | 阈值 |
+|---|---|
+| 条目 ↔ 条目（近重复、advisory 候选） | 主线 0.25，观察线 0.22 |
+| 查询 ↔ 条目（注入哪两条错题） | 0.10 |
+
+原因是长度稀释：查询里带着标签、文件集和验收判据，Jaccard 会被摊薄。在全卷上实测，查询↔条目的最高分只有 0.158，前六名落在 0.107–0.158 —— 这里继续用 0.25 会导致每个任务都回退，那不是安全边际，而是静默停用。回退策略（最高分低于线）是「同类别最新一条」，并且会被明确标记为回退，以便统计。
+
+同一条注入链的其余常数一并记下：最多 2 条、正文各 120 字节、摘要合计 800 字节、跨类扣 0.05、若该条目已被静态 mini-memory 行覆盖（bigram 覆盖率 ≥ 0.5）则不重复注入。

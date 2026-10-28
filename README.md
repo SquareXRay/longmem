@@ -89,11 +89,11 @@ flowchart TB
 
 | Layer | Budget | When written | How read |
 |---|---|---|---|
-| L0 protocol | ~2 KB × 3 | when a rule changes | always injected |
+| L0 protocol | 4 files, ≤ 45 KB total (protocol file ≤ 24 KB) | when a rule changes | always injected |
 | L1 index | 36 KB | conclusions, rules or entry points change | always injected |
 | L2 topic | 40 KB per file | a topic gains a new conclusion | trigger word hit |
 | L3 journal | append-only | after every completed step | matching search snippet |
-| L4 cold | 36 KB per volume | untouched for 4 weeks | index lookup |
+| L4 cold | 36 KB per volume, cold index ≤ 36 KB | untouched for 4 weeks | index lookup |
 
 **中文**
 
@@ -101,11 +101,11 @@ flowchart TB
 
 | 层级 | 预算 | 何时写入 | 怎么读 |
 |---|---|---|---|
-| L0 协议 | ~2 KB × 3 | 规则变化时 | 始终注入 |
+| L0 协议 | 4 个文件，合计 ≤ 45 KB（协议文件 ≤ 24 KB） | 规则变化时 | 始终注入 |
 | L1 索引 | 36 KB | 结论、规则或入口变化时 | 始终注入 |
 | L2 主题 | 每文件 40 KB | 某个主题得到新结论时 | 触发词命中 |
 | L3 日志 | 只追加 | 每完成一步之后 | 匹配的检索片段 |
-| L4 冷层 | 每卷 36 KB | 四周未被触碰 | 查索引 |
+| L4 冷层 | 每卷 36 KB，冷层索引 ≤ 36 KB | 四周未被触碰 | 查索引 |
 
 ---
 
