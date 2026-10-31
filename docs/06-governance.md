@@ -35,6 +35,77 @@ not mean more autonomy.**
 
 无人值守的活（后台任务、定时任务）撞到授权或凭证问题，就写一条收件箱条目并挂起；只允许只读的活继续。**无人值守不等于更高自主度。**
 
+## Retention: export first, then delete
+
+Deleting old rows is the only irreversible thing in housekeeping, so the delete is gated on a
+verified export:
+
+- each table is exported **per month** to `jsonl.zst`, next to a `.sha256` sidecar and a manifest
+  (row count, byte count, time range, source database, sqlite and zstd versions, predicate used);
+- **idempotent by verification**: an existing file is reused only when its manifest, checksum and
+  decompressed row count all re-verify; a second run in the same month writes a **separate shard**
+  — overwriting would destroy rows that were already deleted;
+- **fail-closed**: zstd missing, write failure, checksum mismatch or row-count mismatch means
+  **zero rows deleted** and a non-zero exit;
+- deleting requires the explicit apply flag, and is refused while the gateway is running;
+- what is deleted is compared with what was exported, and the archive itself expires after 30 days.
+
+Two retention clocks, not one: **transcript and trajectory 7 days** (it was 14), **audit events
+14 days**. One number would either keep debugging traces too long or lose the audit trail too early;
+the split is stated per table because that is where it is enforced.
+
+**中文**
+
+巡检里唯一不可逆的动作就是删旧行，所以删除必须以一次**已校验的导出**为前提：
+
+- 每张表**按月**导出成 `jsonl.zst`，旁边配 `.sha256` 与 manifest（行数、字节数、时间范围、源库、sqlite 与 zstd 版本、所用 predicate）；
+- **靠校验幂等**：只有 manifest、校验和与解压后的行数三者复核一致才复用旧文件；同月第二次运行写**独立分片** —— 覆盖会销毁已经被删掉的行；
+- **fail-closed**：zstd 缺失、写盘失败、校验不一致或行数不符，都意味着**一行都不删**并非零退出；
+- 删除需要显式 apply 开关，且网关运行中拒绝执行；
+- 删除行数与导出行数比对通过才继续；归档自身 30 天后过期。
+
+保留期是**两套口径，不是一个数**：**transcript 与 trajectory 7 天**（原为 14），**audit events 14 天**。用一个数要么把调试痕迹留太久，要么把审计线索删太早；口径按表分开写，因为执行点就在表上。
+
+## The ledger ages in shards
+
+The decision ledger is not exempt from retention. Terminal entries leave the hot file after a
+**default of 14 days**, with carrier-specific overrides that may only **shorten** it — scheduled
+(automation) and exec carriers go after **1 day**, because they are the bulk of the volume and age
+fastest. Entries still referenced by a live entry are skipped. Moves go to a dated archive volume
+with a backup and a **tombstone index**, so an archived id can never be reused by accident, and a
+scheduled GC job drives the whole pass — dry-run first, with counts broken down per carrier.
+
+**中文**
+
+决策台账同样有保留期。终态条目**默认 14 天**后离开热文件；按 carrier 的覆盖**只允许缩短** —— 定时任务（automation）与 exec 类是条数大头、复盘价值衰减最快，**1 天**即可。仍被活跃条目引用的不迁。迁出写进带日期的归档卷，先备份，并维护**墓碑索引**，归档 id 永远不会被无意复用；整轮由定时 GC 任务驱动 —— 先 dry-run，输出按 carrier 分类的条数。
+
+## One writer path, and no RPC inside its lock
+
+Ledger writes serialize on an exclusive file lock with a **5-second watchdog**. A cross-process
+call to the card system inside that lock pushes the critical section past the watchdog: the watchdog
+then fails the write while the call still completes, leaving a half-applied change. So the order is
+fixed: **prepare (RPC) outside, lock, write, release**. A card RPC attempted while the lock is held
+is rejected outright, and a guard test asserts the rejection. The lock file is not a general-purpose
+mutex either — reusing it under another name is blocked by a per-file allowlist.
+
+**中文**
+
+台账写入串行在一把独占文件锁上，锁带 **5 秒看门狗**。在锁内发跨进程调用到卡片系统，会把临界区顶过看门狗：看门狗随后把这次写判失败，而调用其实已经完成 —— 留下一个半应用的改动。所以顺序是固定的：**RPC 在外准备，取锁，写，放锁**。持锁期间尝试卡片 RPC 会被直接拒绝，有守卫用例断言这一点。锁文件也不是通用互斥量 —— 换个名字复用它会被逐文件白名单拦下。
+
+## The card is a projection of the ledger
+
+A card is a projection, not a second state machine. The ledger's state vocabulary is the single
+source, and the mapping from ledger state to board state is one function shared by every projector.
+Projection is triggered by the **release of the write lock**, not by each caller remembering to call
+it; a failed projection is logged and left for the worker to replay, never silently dropped and
+never allowed to fail the ledger write. Projection is idempotent: a card already at the target state
+is a no-op, and a missing card is recorded and skipped — never auto-created. `cancelled` maps to
+**archived**, not done; otherwise the vocabulary says "released" while the board says "completed".
+
+**中文**
+
+卡片是台账的投影，不是第二个状态机。台账的状态词表是唯一来源，台账状态到工作板状态的映射只有一个函数，所有投影方共用。投影由**写锁释放**触发，而不是靠每个调用方记得去调；投影失败会落日志留给 worker 重放，绝不静默丢弃，也绝不允许反过来把台账写入判失败。投影是幂等的：卡已在目标态即 no-op，卡不存在只记一笔并跳过 —— 绝不自动建卡。`cancelled` 映射为**归档**而不是完成，否则词表说「已释放」、工作板说「已完成」，两套答案。
+
 ## Nightly curation
 
 Runs with sessions stopped, and performs mechanical actions only:

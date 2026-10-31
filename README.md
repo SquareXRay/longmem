@@ -139,6 +139,32 @@ sinks into a hook layer that rejects unknown cases by default.
 
 ---
 
+## Operational invariants
+
+Four rules that a memory system usually learns by losing data once:
+
+- **Delete only after a verified export.** Exports are compressed, checksummed and described by a
+  manifest (row count, byte count, source, predicate); any mismatch means zero rows deleted, and
+  the archive itself expires on its own clock.
+- **No cross-process call inside a write lock.** The lock has a 5-second watchdog; a slow call
+  inside the critical section fails the write while the call still completes. Prepare outside,
+  then lock.
+- **The board is a projection of the ledger.** One state vocabulary, one mapping function,
+  projection fired on lock release; `cancelled` archives a card instead of completing it.
+- **Short CJK queries degrade, they do not disappear.** Trigram search needs three characters;
+  one- and two-character words fall back to bigram grep — a route, not a second index.
+
+**中文**
+
+四条规则，记忆系统通常要以「丢过一次数据」为代价才学会：
+
+- **先校验导出，再删除。** 导出要压缩、带校验和，并用 manifest 记录行数、字节数、源库与 predicate；任一项不一致就一行都不删，归档自身另按自己的保留期过期。
+- **写锁内不发跨进程调用。** 锁带 5 秒看门狗；临界区里的慢调用会让写入被判失败，而调用其实已经完成。RPC 放到锁外准备，再取锁。
+- **工作板是台账的投影。** 一套状态词表、一个映射函数，投影在放锁时触发；`cancelled` 对卡是归档，不是完成。
+- **中文短词降级，而不是消失。** trigram 检索要求三个字符；一字/两字词走 bigram grep 降级通道 —— 那是一条路径，不是第二套索引。
+
+---
+
 ## Quick start
 
 ```bash

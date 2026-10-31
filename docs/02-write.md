@@ -109,6 +109,26 @@ by joining an array rather than embedding escaped newlines.
 
 中文正文一律用「」引用，这样永远不会和代码里的引号打架；多行字符串用数组 join 拼出来，而不是把转义换行嵌进字面量。
 
+## A write lock is not a place for I/O
+
+When one ledger file is shared, writes serialize on a lock that carries a **5-second watchdog**. A
+slow cross-process call made while holding it is the worst case: the call outlives the watchdog and
+still completes, while the write is judged failed — one change half-applied. So the ordering is part
+of write discipline, not an optimization:
+
+- prepare everything that needs an external call **before** taking the lock;
+- while the lock is held, only touch the file — no cross-process calls, and no reuse of the lock
+  file for any other purpose;
+- whatever fails after release is replayed by a worker, never retried inside the critical section.
+
+**中文**
+
+只有一个台账文件时，写入串行在一把带 **5 秒看门狗**的锁上。持锁期间做慢的跨进程调用是最坏情况：调用熬过看门狗并且仍然完成，而这次写入已被判失败 —— 一个改动只应用了一半。所以顺序属于写入纪律，不是优化：
+
+- 需要外部调用的一切，在**取锁之前**准备好；
+- 持锁期间只碰文件 —— 不发跨进程调用，也不把这个锁文件挪作他用；
+- 放锁之后失败的，交给 worker 重放，绝不在临界区内重试。
+
 ## Pre-commit self-check
 
 - `git show --stat`: the file set must be a subset of what this task was authorized to touch. Any

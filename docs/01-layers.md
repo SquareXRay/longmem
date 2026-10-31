@@ -53,7 +53,9 @@ allowed to be verbose.
 
 **L4 cold** holds what is stale but may be worth recalling. Archiving must update the hot index at
 the same time, otherwise it is a deletion. Names carry a date suffix, and synonymous directories
-such as `archive/` and `_archive/` must not coexist.
+such as `archive/` and `_archive/` must not coexist. The same test governs data retention: export
+with a checksum and a manifest first, then delete — a delete without a verified copy is destruction,
+not housekeeping.
 
 **中文**
 
@@ -65,7 +67,7 @@ such as `archive/` and `_archive/` must not coexist.
 
 **L3 日志**每日追加，记录原始过程：试过什么、为什么失败、最终的 commit。它从不被注入，只作为检索命中被读取。日志是唯一允许啰嗦的层。
 
-**L4 冷层**放已经陈旧、但可能值得回溯的东西。归档时必须同步更新热索引，否则那就是一次删除。文件名带日期后缀，`archive/` 与 `_archive/` 这类同义目录不得并存。
+**L4 冷层**放已经陈旧、但可能值得回溯的东西。归档时必须同步更新热索引，否则那就是一次删除。文件名带日期后缀，`archive/` 与 `_archive/` 这类同义目录不得并存。数据保留期沿用同一条判据：先带校验和与 manifest 导出，再删 —— 没有可校验副本的删除是销毁，不是清理。
 
 ## The one hard test
 

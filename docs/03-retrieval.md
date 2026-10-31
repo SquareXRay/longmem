@@ -92,6 +92,37 @@ full text. Opening the text is left to the next step, so one search does not blo
 
 {file, path, score, 命中行片段（≤120 字符）} —— 足够判断要不要打开全文。打开全文留给下一步，于是一次检索不会把上下文撑爆。
 
+## Short words: trigram needs three characters
+
+The keyword provider splits CJK text into **trigrams**, so any query shorter than three characters
+matches nothing. Measured on the same corpus: the two-character word 「归档」 returns zero hits,
+while the three-character 「保留期」 returns 22. That is a tokenizer limit, not a ranking bug, and it
+must not be "fixed" by lowering the score until noise passes as a hit.
+
+Route by query length, explicitly:
+
+| Query | Route |
+|---|---|
+| 3 characters or more | the in-process keyword search (trigram) |
+| 1–2 characters / short CJK words | the bigram grep fallback, same scoring, same budget |
+
+The fallback is a **degradation path, not a second index**: it reads files directly, reuses the tier
+weights and the 5-second budget above, and maintains no state of its own. The durable fix is a CJK
+bigram tokenizer upstream (tracked as openclaw#170997); until it lands, a zero-hit two-character
+query means "wrong route", not "nothing was written".
+
+**中文**
+
+关键词 provider 把中文切成 **trigram**，所以任何短于三个字符的查询都匹配不到东西。同一语料实测：两字词「归档」0 命中，三字词「保留期」22 命中。这是分词器的限制，不是排序 bug —— 也不该靠「把分数降到噪声也能过」来掩盖。
+
+按查询长度显式分流：
+
+| 查询 | 走哪条 |
+|---|---|
+| ≥ 3 字符 | 进程内关键词检索（trigram） |
+| 1–2 字符 / 中文短词 | bigram grep 降级通道，同样打分、同样预算 |
+
+降级通道是**一条退化路径，不是第二套索引**：直接读文件、复用上面的层级权重与 5 秒预算、不自建任何状态。长久的解法是上游提供 CJK bigram 分词器（已记为 openclaw#170997）；在它落地之前，两字查询 0 命中意味着「走错通道」，而不是「没写过」。
 
 ## Two similarity thresholds, never one
 
